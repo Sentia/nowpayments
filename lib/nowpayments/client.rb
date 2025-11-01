@@ -2,11 +2,35 @@
 
 require "faraday"
 require "json"
+require_relative "api/status"
+require_relative "api/authentication"
+require_relative "api/currencies"
+require_relative "api/estimation"
+require_relative "api/payments"
+require_relative "api/invoices"
+require_relative "api/payouts"
+require_relative "api/subscriptions"
+require_relative "api/conversions"
+require_relative "api/custody"
+require_relative "api/fiat_payouts"
 
 module NOWPayments
   # Main client for interacting with the NOWPayments API
   class Client
+    include API::Status
+    include API::Authentication
+    include API::Currencies
+    include API::Estimation
+    include API::Payments
+    include API::Invoices
+    include API::Payouts
+    include API::Subscriptions
+    include API::Conversions
+    include API::Custody
+    include API::FiatPayouts
+
     attr_reader :api_key, :ipn_secret, :sandbox
+    attr_accessor :jwt_token, :jwt_expires_at
 
     BASE_URL = "https://api.nowpayments.io/v1"
     SANDBOX_URL = "https://api-sandbox.nowpayments.io/v1"
@@ -15,354 +39,31 @@ module NOWPayments
       @api_key = api_key
       @ipn_secret = ipn_secret
       @sandbox = sandbox
+      @jwt_token = nil
+      @jwt_expires_at = nil
     end
 
     def base_url
       sandbox ? SANDBOX_URL : BASE_URL
     end
 
-    # ============================================
-    # STATUS & UTILITY ENDPOINTS
-    # ============================================
-
-    # Check API status
-    # GET /v1/status
-    # @return [Hash] Status response
-    def status
-      get("status").body
-    end
-
-    # Get list of available currencies
-    # GET /v1/currencies
-    # @return [Hash] Available currencies
-    def currencies
-      get("currencies").body
-    end
-
-    # Get list of available currencies with full info
-    # GET /v1/full-currencies
-    # @return [Hash] Full currency information
-    def full_currencies
-      get("full-currencies").body
-    end
-
-    # Get list of available currencies checked by merchant
-    # GET /v1/merchant/coins
-    # @return [Hash] Merchant's checked currencies
-    def merchant_coins
-      get("merchant/coins").body
-    end
-
-    # ============================================
-    # ESTIMATION & CALCULATION ENDPOINTS
-    # ============================================
-
-    # Get minimum payment amount for currency pair
-    # GET /v1/min-amount
-    # @param currency_from [String] Source currency code
-    # @param currency_to [String] Target currency code
-    # @return [Hash] Minimum amount info
-    def min_amount(currency_from:, currency_to:)
-      get("min-amount", params: {
-            currency_from: currency_from,
-            currency_to: currency_to
-          }).body
-    end
-
-    # Estimate price for currency pair
-    # GET /v1/estimate
-    # @param amount [Numeric] Amount to estimate
-    # @param currency_from [String] Source currency
-    # @param currency_to [String] Target currency
-    # @return [Hash] Price estimate
-    def estimate(amount:, currency_from:, currency_to:)
-      get("estimate", params: {
-            amount: amount,
-            currency_from: currency_from,
-            currency_to: currency_to
-          }).body
-    end
-
-    # ============================================
-    # PAYMENT ENDPOINTS
-    # ============================================
-
-    # Create a new payment
-    # POST /v1/payment
-    # @param price_amount [Numeric] Fiat amount
-    # @param price_currency [String] Fiat currency
-    # @param pay_currency [String] Crypto currency customer pays with
-    # @param order_id [String, nil] Optional merchant order ID
-    # @param order_description [String, nil] Optional description
-    # @param ipn_callback_url [String, nil] Optional webhook URL
-    # @param payout_address [String, nil] Optional custom payout address
-    # @param payout_currency [String, nil] Required if payout_address set
-    # @param payout_extra_id [String, nil] Optional extra ID for payout
-    # @param fixed_rate [Boolean, nil] Fixed rate payment
-    # @return [Hash] Payment details
-    def create_payment(
-      price_amount:,
-      price_currency:,
-      pay_currency:,
-      order_id: nil,
-      order_description: nil,
-      ipn_callback_url: nil,
-      payout_address: nil,
-      payout_currency: nil,
-      payout_extra_id: nil,
-      fixed_rate: nil
-    )
-      params = {
-        price_amount: price_amount,
-        price_currency: price_currency,
-        pay_currency: pay_currency
-      }
-
-      params[:order_id] = order_id if order_id
-      params[:order_description] = order_description if order_description
-      params[:ipn_callback_url] = ipn_callback_url if ipn_callback_url
-      params[:payout_address] = payout_address if payout_address
-      params[:payout_currency] = payout_currency if payout_currency
-      params[:payout_extra_id] = payout_extra_id if payout_extra_id
-      params[:fixed_rate] = fixed_rate unless fixed_rate.nil?
-
-      validate_payment_params!(params)
-
-      post("payment", body: params).body
-    end
-
-    # Get payment status
-    # GET /v1/payment/:payment_id
-    # @param payment_id [Integer, String] Payment ID
-    # @return [Hash] Payment status
-    def payment(payment_id)
-      get("payment/#{payment_id}").body
-    end
-
-    # List payments with pagination and filters
-    # GET /v1/payment
-    # @param limit [Integer] Results per page
-    # @param page [Integer] Page number
-    # @param sort_by [String, nil] Sort field
-    # @param order_by [String, nil] Order direction (asc/desc)
-    # @param date_from [String, nil] Start date filter
-    # @param date_to [String, nil] End date filter
-    # @return [Hash] List of payments
-    def payments(limit: 10, page: 0, sort_by: nil, order_by: nil, date_from: nil, date_to: nil)
-      params = { limit: limit, page: page }
-      params[:sortBy] = sort_by if sort_by
-      params[:orderBy] = order_by if order_by
-      params[:dateFrom] = date_from if date_from
-      params[:dateTo] = date_to if date_to
-
-      get("payment", params: params).body
-    end
-
-    # Update payment estimate
-    # PATCH /v1/payment/:payment_id
-    # @param payment_id [Integer, String] Payment ID
-    # @return [Hash] Updated payment
-    def update_payment_estimate(payment_id)
-      patch("payment/#{payment_id}").body
-    end
-
-    # ============================================
-    # INVOICE ENDPOINTS
-    # ============================================
-
-    # Create an invoice (hosted payment page)
-    # POST /v1/invoice
-    # @param price_amount [Numeric] Fiat amount
-    # @param price_currency [String] Fiat currency
-    # @param pay_currency [String, nil] Optional crypto (if nil, customer chooses)
-    # @param order_id [String, nil] Optional merchant order ID
-    # @param order_description [String, nil] Optional description
-    # @param ipn_callback_url [String, nil] Optional webhook URL
-    # @param success_url [String, nil] Optional redirect after success
-    # @param cancel_url [String, nil] Optional redirect after cancel
-    # @return [Hash] Invoice with invoice_url
-    def create_invoice(
-      price_amount:,
-      price_currency:,
-      pay_currency: nil,
-      order_id: nil,
-      order_description: nil,
-      ipn_callback_url: nil,
-      success_url: nil,
-      cancel_url: nil
-    )
-      params = {
-        price_amount: price_amount,
-        price_currency: price_currency
-      }
-
-      params[:pay_currency] = pay_currency if pay_currency
-      params[:order_id] = order_id if order_id
-      params[:order_description] = order_description if order_description
-      params[:ipn_callback_url] = ipn_callback_url if ipn_callback_url
-      params[:success_url] = success_url if success_url
-      params[:cancel_url] = cancel_url if cancel_url
-
-      post("invoice", body: params).body
-    end
-
-    # ============================================
-    # PAYOUT ENDPOINTS (Requires JWT Auth)
-    # ============================================
-
-    # Create payout
-    # POST /v1/payout
-    # Note: This endpoint typically requires JWT authentication
-    # @param withdrawals [Array<Hash>] Array of withdrawal objects
-    # @return [Hash] Payout result
-    def create_payout(withdrawals:)
-      post("payout", body: { withdrawals: withdrawals }).body
-    end
-
-    # ============================================
-    # SUBSCRIPTION/RECURRING PAYMENT ENDPOINTS
-    # ============================================
-
-    # Get subscription plans
-    # GET /v1/subscriptions/plans
-    # @return [Hash] List of subscription plans
-    def subscription_plans
-      get("subscriptions/plans").body
-    end
-
-    # Create subscription plan
-    # POST /v1/subscriptions/plans
-    # @param plan_data [Hash] Plan configuration
-    # @return [Hash] Created plan
-    def create_subscription_plan(plan_data)
-      post("subscriptions/plans", body: plan_data).body
-    end
-
-    # Get specific subscription plan
-    # GET /v1/subscriptions/plans/:plan_id
-    # @param plan_id [String, Integer] Plan ID
-    # @return [Hash] Plan details
-    def subscription_plan(plan_id)
-      get("subscriptions/plans/#{plan_id}").body
-    end
-
-    # Create email subscription
-    # POST /v1/subscriptions
-    # @param plan_id [String] Subscription plan ID
-    # @param email [String] Customer email
-    # @return [Hash] Subscription result
-    def create_subscription(plan_id:, email:)
-      post("subscriptions", body: {
-             plan_id: plan_id,
-             email: email
-           }).body
-    end
-
-    # Get subscription payments
-    # GET /v1/subscriptions/:subscription_id/payments
-    # @param subscription_id [String, Integer] Subscription ID
-    # @return [Hash] Subscription payments
-    def subscription_payments(subscription_id)
-      get("subscriptions/#{subscription_id}/payments").body
-    end
-
-    # ============================================
-    # CUSTODY API (SUB-PARTNER/CUSTOMER MANAGEMENT)
-    # ============================================
-
-    # Create a new sub-account (user account)
-    # POST /v1/sub-partner/balance
-    # @param user_id [String] Unique user identifier (your internal user ID)
-    # @return [Hash] Created sub-account details
-    def create_sub_account(user_id:)
-      post("sub-partner/balance", body: { Name: user_id }).body
-    end
-
-    # Get balance for all sub-accounts or specific user
-    # GET /v1/sub-partner/balance
-    # @param user_id [String, nil] Optional specific user ID to filter
-    # @return [Hash] Array of user balances
-    def sub_account_balances(user_id: nil)
-      params = user_id ? { Name: user_id } : {}
-      get("sub-partner/balance", params: params).body
-    end
-
-    # Create deposit request for sub-account (external crypto deposit)
-    # POST /v1/sub-partner/deposit
-    # @param user_id [String] User identifier
-    # @param currency [String] Cryptocurrency code
-    # @param amount [Numeric, nil] Optional amount
-    # @return [Hash] Deposit address and details
-    def create_sub_account_deposit(user_id:, currency:, amount: nil)
-      params = {
-        Name: user_id,
-        currency: currency
-      }
-      params[:amount] = amount if amount
-
-      post("sub-partner/deposit", body: params).body
-    end
-
-    # Transfer funds from master account to sub-account
-    # POST /v1/sub-partner/deposit-from-master
-    # @param user_id [String] User identifier
-    # @param currency [String] Cryptocurrency code
-    # @param amount [Numeric] Amount to transfer
-    # @return [Hash] Transfer result
-    def transfer_to_sub_account(user_id:, currency:, amount:)
-      post("sub-partner/deposit-from-master", body: {
-             Name: user_id,
-             currency: currency,
-             amount: amount
-           }).body
-    end
-
-    # Write-off (withdraw) funds from sub-account to master account
-    # POST /v1/sub-partner/write-off
-    # @param user_id [String] User identifier
-    # @param currency [String] Cryptocurrency code
-    # @param amount [Numeric] Amount to withdraw
-    # @return [Hash] Write-off result
-    def withdraw_from_sub_account(user_id:, currency:, amount:)
-      post("sub-partner/write-off", body: {
-             Name: user_id,
-             currency: currency,
-             amount: amount
-           }).body
-    end
-
-    # Get details of a specific transfer
-    # GET /v1/sub-partner/transfer
-    # @param transfer_id [String, Integer] Transfer ID
-    # @return [Hash] Transfer details
-    def sub_account_transfer(transfer_id)
-      get("sub-partner/transfer", params: { id: transfer_id }).body
-    end
-
-    # Get list of all transfers
-    # GET /v1/sub-partner/transfers
-    # @param limit [Integer] Results per page
-    # @param page [Integer] Page number
-    # @return [Hash] List of transfers
-    def sub_account_transfers(limit: 10, page: 0)
-      get("sub-partner/transfers", params: {
-            limit: limit,
-            page: page
-          }).body
-    end
-
     private
 
     def connection
-      @connection ||= Faraday.new(url: base_url) do |conn|
-        conn.request :json
-        conn.response :json, content_type: /\bjson$/
-        conn.response :logger if ENV["DEBUG"] || ENV["NOWPAYMENTS_DEBUG"]
-        conn.use Middleware::ErrorHandler
-        conn.adapter Faraday.default_adapter
+      @connection ||= Faraday.new(url: base_url) do |faraday|
+        faraday.request :json
+        faraday.response :json, content_type: /\bjson$/
+        faraday.adapter Faraday.default_adapter
+        faraday.headers["x-api-key"] = @api_key
 
-        conn.headers["x-api-key"] = api_key if api_key
+        # Add JWT Bearer token if available and not expired
+        faraday.headers["Authorization"] = "Bearer #{@jwt_token}" if @jwt_token && !jwt_expired?
       end
+    end
+
+    # Reset connection when JWT token changes
+    def reset_connection!
+      @connection = nil
     end
 
     def get(path, params: {})
@@ -370,11 +71,15 @@ module NOWPayments
     end
 
     def post(path, body: {})
-      connection.post(path, body)
+      connection.post(path, body.to_json)
     end
 
     def patch(path, body: {})
-      connection.patch(path, body)
+      connection.patch(path, body.to_json)
+    end
+
+    def delete(path, params: {})
+      connection.delete(path, params)
     end
 
     def validate_payment_params!(params)
