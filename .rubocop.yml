@@ -18,6 +18,7 @@ Metrics/MethodLength:
   Max: 15
   Exclude:
     - 'spec/**/*'
+    - 'lib/nowpayments/api/**/*' # API methods have many optional params
 
 Metrics/BlockLength:
   Max: 120
@@ -27,6 +28,8 @@ Metrics/BlockLength:
 
 Metrics/CyclomaticComplexity:
   Max: 10
+  Exclude:
+    - 'lib/nowpayments/api/**/*' # API methods have many optional params
 
 Metrics/ParameterLists:
   Max: 10
@@ -34,6 +37,13 @@ Metrics/ParameterLists:
 
 Metrics/AbcSize:
   Max: 20
+  Exclude:
+    - 'lib/nowpayments/api/**/*' # API methods have many optional params
+
+Metrics/PerceivedComplexity:
+  Max: 10
+  Exclude:
+    - 'lib/nowpayments/api/**/*' # API methods have many optional params
 
 # Naming
 Naming/MethodParameterName:
