@@ -4,9 +4,7 @@ require "spec_helper"
 
 RSpec.describe "NOWPayments API Integration", :vcr do
   before(:all) do
-    unless ENV["NOWPAYMENTS_SANDBOX_API_KEY"]
-      skip "Set NOWPAYMENTS_SANDBOX_API_KEY in .env to run integration tests"
-    end
+    skip "Set NOWPAYMENTS_SANDBOX_API_KEY in .env to run integration tests" unless ENV["NOWPAYMENTS_SANDBOX_API_KEY"]
   end
 
   let(:client) do

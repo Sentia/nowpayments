@@ -22,7 +22,7 @@ post "/webhooks/nowpayments" do
   # Verify the webhook
   payload = NOWPayments::Rack.verify_webhook(
     request,
-    ENV["NOWPAYMENTS_SANDBOX_IPN_SECRET"]
+    ENV.fetch("NOWPAYMENTS_SANDBOX_IPN_SECRET", nil)
   )
 
   logger.info "Received verified webhook: #{payload.inspect}"

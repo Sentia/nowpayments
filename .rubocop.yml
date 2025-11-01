@@ -1,8 +1,48 @@
 AllCops:
   TargetRubyVersion: 3.2
+  NewCops: enable
 
 Style/StringLiterals:
   EnforcedStyle: double_quotes
 
 Style/StringLiteralsInInterpolation:
   EnforcedStyle: double_quotes
+
+# Metrics - Relaxed for v0.1.0
+Metrics/ClassLength:
+  Max: 200
+  Exclude:
+    - 'spec/**/*'
+
+Metrics/MethodLength:
+  Max: 15
+  Exclude:
+    - 'spec/**/*'
+
+Metrics/BlockLength:
+  Max: 120
+  Exclude:
+    - 'spec/**/*'
+    - 'examples/**/*'
+
+Metrics/CyclomaticComplexity:
+  Max: 10
+
+Metrics/ParameterLists:
+  Max: 10
+  CountKeywordArgs: false
+
+Metrics/AbcSize:
+  Max: 20
+
+# Naming
+Naming/MethodParameterName:
+  MinNameLength: 1
+  AllowedNames: ['a', 'b']
+
+Naming/PredicateMethod:
+  Enabled: false
+
+# Layout
+Layout/LineLength:
+  Max: 140

@@ -31,4 +31,3 @@ module NOWPayments
     end
   end
 end
-

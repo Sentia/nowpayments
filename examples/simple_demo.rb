@@ -9,7 +9,7 @@ Dotenv.load
 
 # Initialize client
 client = NOWPayments::Client.new(
-  api_key: ENV["NOWPAYMENTS_SANDBOX_API_KEY"],
+  api_key: ENV.fetch("NOWPAYMENTS_SANDBOX_API_KEY", nil),
   sandbox: true
 )
 

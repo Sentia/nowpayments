@@ -28,8 +28,8 @@ VCR.configure do |config|
   config.configure_rspec_metadata!
 
   # Filter sensitive data from cassettes
-  config.filter_sensitive_data("<API_KEY>") { ENV["NOWPAYMENTS_SANDBOX_API_KEY"] }
-  config.filter_sensitive_data("<IPN_SECRET>") { ENV["NOWPAYMENTS_SANDBOX_IPN_SECRET"] }
+  config.filter_sensitive_data("<API_KEY>") { ENV.fetch("NOWPAYMENTS_SANDBOX_API_KEY", nil) }
+  config.filter_sensitive_data("<IPN_SECRET>") { ENV.fetch("NOWPAYMENTS_SANDBOX_IPN_SECRET", nil) }
 
   # Allow connections to sandbox when recording
   config.ignore_localhost = false

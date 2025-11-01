@@ -12,7 +12,7 @@ module NOWPayments
         @headers = env_or_message[:response_headers]
         super(error_message)
       else
-        super(env_or_message)
+        super
       end
     end
 
@@ -33,7 +33,7 @@ module NOWPayments
   class ConnectionError < Error
     def initialize(message)
       @message = message
-      super(message)
+      super
     end
   end
 

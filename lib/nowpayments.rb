@@ -7,7 +7,6 @@ require_relative "nowpayments/client"
 require_relative "nowpayments/webhook"
 require_relative "nowpayments/rack"
 
-module Nowpayments
+module NOWPayments
   class Error < StandardError; end
-  # Your code goes here...
 end

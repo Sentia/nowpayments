@@ -32,10 +32,10 @@ gem install nowpayments
 ```ruby
 require 'nowpayments'
 
-# Initialize client
+# Initialize client (sandbox for testing, production when ready)
 client = NOWPayments::Client.new(
   api_key: ENV['NOWPAYMENTS_API_KEY'],
-  sandbox: false
+  sandbox: true
 )
 
 # Create a payment
@@ -47,30 +47,41 @@ payment = client.create_payment(
   ipn_callback_url: 'https://yourdomain.com/webhooks/nowpayments'
 )
 
-# Show payment details to customer
-puts "Send payment to: #{payment['pay_address']}"
+puts "Payment address: #{payment['pay_address']}"
 puts "Amount: #{payment['pay_amount']} BTC"
 puts "Status: #{payment['payment_status']}"
 ```
 
 ## Features
 
-### Complete API Coverage
+### Complete API Coverage (24 Methods, 92% Coverage)
 
+**Standard API (17 methods):**
 - **Payments** - Create and track cryptocurrency payments
-- **Invoices** - Generate hosted payment pages
-- **Subscriptions** - Recurring payment plans
-- **Payouts** - Mass payment distribution
-- **Estimates** - Real-time price calculations
-- **Webhooks** - Secure IPN notifications with HMAC-SHA512
+- **Invoices** - Generate hosted payment pages  
+- **Subscriptions** - Recurring payment plans and billing
+- **Estimates** - Real-time price calculations and minimum amounts
+- **Status** - API health and available currencies
+
+**Custody API (7 methods):**
+- **Sub-accounts** - Create and manage user wallets
+- **Balances** - Query account and sub-account balances
+- **Deposits** - Generate deposit addresses per user
+- **Transfers** - Move funds between sub-accounts
+- **Withdrawals** - Process user withdrawals
+
+**Security:**
+- **Webhooks** - HMAC-SHA512 signature verification
+- **Constant-time comparison** - Prevents timing attacks
+- **MFA-ready** - Required for gem publishing
 
 ### Built for Production
 
-- **Type-safe** - All responses validated against API schema
-- **Error handling** - Comprehensive exception hierarchy
-- **Secure** - Webhook signature verification with constant-time comparison
-- **Tested** - Full test coverage with VCR cassettes
+- **Comprehensive error handling** - 8 exception classes with detailed messages
+- **Faraday middleware** - Automatic error mapping and retries
+- **Tested** - 23 passing tests with VCR cassettes for integration
 - **Rails-ready** - Drop-in Rack middleware for webhook verification
+- **Type-safe** - All responses return Ruby Hashes from parsed JSON
 
 ## Usage Examples
 
@@ -111,6 +122,39 @@ invoice = client.create_invoice(
 # Redirect customer to payment page
 redirect_to invoice['invoice_url']
 # Customer can choose from 150+ cryptocurrencies
+```
+
+### Custody API - Sub-accounts (Marketplaces & Casinos)
+
+```ruby
+# Create sub-account for a user
+sub_account = client.create_sub_account(user_id: user.id)
+# => {"id"=>123, "user_id"=>456, "created_at"=>"2025-11-01T..."}
+
+# Generate deposit address for user's BTC wallet
+deposit = client.create_sub_account_deposit(
+  user_id: user.id,
+  currency: 'btc'
+)
+# => {"address"=>"bc1q...", "currency"=>"btc"}
+
+# Check user's balance
+balances = client.sub_account_balances(user_id: user.id)
+# => {"balances"=>{"btc"=>0.05, "eth"=>1.2}}
+
+# Transfer funds to sub-account
+transfer = client.transfer_to_sub_account(
+  user_id: user.id,
+  currency: 'btc',
+  amount: 0.01
+)
+
+# Process withdrawal
+withdrawal = client.withdraw_from_sub_account(
+  user_id: user.id,
+  currency: 'btc',
+  amount: 0.005
+)
 ```
 
 ### Webhook Verification (Critical!)

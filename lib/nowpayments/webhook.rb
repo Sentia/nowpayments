@@ -22,9 +22,7 @@ module NOWPayments
         sorted_json = sort_keys_recursive(parsed)
         expected_sig = generate_signature(sorted_json, secret)
 
-        unless secure_compare(expected_sig, signature)
-          raise SecurityError, "Invalid IPN signature - webhook verification failed"
-        end
+        raise SecurityError, "Invalid IPN signature - webhook verification failed" unless secure_compare(expected_sig, signature)
 
         parsed
       end
@@ -36,7 +34,7 @@ module NOWPayments
       def sort_keys_recursive(obj)
         case obj
         when Hash
-          Hash[obj.sort].transform_values { |v| sort_keys_recursive(v) }
+          obj.sort.to_h.transform_values { |v| sort_keys_recursive(v) }
         when Array
           obj.map { |v| sort_keys_recursive(v) }
         else

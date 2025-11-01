@@ -1,8 +1,7 @@
 # frozen_string_literal: true
 
-RSpec.describe Nowpayments do
+RSpec.describe NOWPayments do
   it "has a version number" do
-    expect(Nowpayments::VERSION).not_to be nil
+    expect(NOWPayments::VERSION).not_to be_nil
   end
 end
-

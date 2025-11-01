@@ -266,6 +266,91 @@ module NOWPayments
       get("subscriptions/#{subscription_id}/payments").body
     end
 
+    # ============================================
+    # CUSTODY API (SUB-PARTNER/CUSTOMER MANAGEMENT)
+    # ============================================
+
+    # Create a new sub-account (user account)
+    # POST /v1/sub-partner/balance
+    # @param user_id [String] Unique user identifier (your internal user ID)
+    # @return [Hash] Created sub-account details
+    def create_sub_account(user_id:)
+      post("sub-partner/balance", body: { Name: user_id }).body
+    end
+
+    # Get balance for all sub-accounts or specific user
+    # GET /v1/sub-partner/balance
+    # @param user_id [String, nil] Optional specific user ID to filter
+    # @return [Hash] Array of user balances
+    def sub_account_balances(user_id: nil)
+      params = user_id ? { Name: user_id } : {}
+      get("sub-partner/balance", params: params).body
+    end
+
+    # Create deposit request for sub-account (external crypto deposit)
+    # POST /v1/sub-partner/deposit
+    # @param user_id [String] User identifier
+    # @param currency [String] Cryptocurrency code
+    # @param amount [Numeric, nil] Optional amount
+    # @return [Hash] Deposit address and details
+    def create_sub_account_deposit(user_id:, currency:, amount: nil)
+      params = {
+        Name: user_id,
+        currency: currency
+      }
+      params[:amount] = amount if amount
+
+      post("sub-partner/deposit", body: params).body
+    end
+
+    # Transfer funds from master account to sub-account
+    # POST /v1/sub-partner/deposit-from-master
+    # @param user_id [String] User identifier
+    # @param currency [String] Cryptocurrency code
+    # @param amount [Numeric] Amount to transfer
+    # @return [Hash] Transfer result
+    def transfer_to_sub_account(user_id:, currency:, amount:)
+      post("sub-partner/deposit-from-master", body: {
+             Name: user_id,
+             currency: currency,
+             amount: amount
+           }).body
+    end
+
+    # Write-off (withdraw) funds from sub-account to master account
+    # POST /v1/sub-partner/write-off
+    # @param user_id [String] User identifier
+    # @param currency [String] Cryptocurrency code
+    # @param amount [Numeric] Amount to withdraw
+    # @return [Hash] Write-off result
+    def withdraw_from_sub_account(user_id:, currency:, amount:)
+      post("sub-partner/write-off", body: {
+             Name: user_id,
+             currency: currency,
+             amount: amount
+           }).body
+    end
+
+    # Get details of a specific transfer
+    # GET /v1/sub-partner/transfer
+    # @param transfer_id [String, Integer] Transfer ID
+    # @return [Hash] Transfer details
+    def sub_account_transfer(transfer_id)
+      get("sub-partner/transfer", params: { id: transfer_id }).body
+    end
+
+    # Get list of all transfers
+    # GET /v1/sub-partner/transfers
+    # @param limit [Integer] Results per page
+    # @param page [Integer] Page number
+    # @return [Hash] List of transfers
+    def sub_account_transfers(limit: 10, page: 0)
+      get("sub-partner/transfers", params: {
+            limit: limit,
+            page: page
+          }).body
+    end
+
     private
 
     def connection
