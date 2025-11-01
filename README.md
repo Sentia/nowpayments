@@ -1,33 +1,30 @@
-# NOWPayments Ruby Gem
+# NOWPayments Ruby SDK
 
-A Ruby client library for the [NOWPayments](https://nowpayments.io/) cryptocurrency payment processing API.
+[![Gem Version](https://badge.fury.io/rb/nowpayments.svg)](https://badge.fury.io/rb/nowpayments)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## Features
+Production-ready Ruby wrapper for the [NOWPayments API](https://documenter.getpostman.com/view/7907941/2s93JusNJt). Accept cryptocurrency payments with minimal code.
 
-- **Standard Payments** - Accept cryptocurrency payments via API
-- **Invoices** - Generate hosted payment pages
-- **IPN Webhooks** - Secure webhook verification with HMAC-SHA512
-- **Subscriptions** - Recurring payment management
-- **Custody API** - Sub-account management for marketplaces and casinos
-- **Mass Payouts** - Batch cryptocurrency payments
-- **Error Handling** - Custom exception hierarchy with detailed context
-- **Thread-Safe** - Auto-refreshing JWT token management
-- **Well-Tested** - Comprehensive test suite with VCR cassettes
+## Why NOWPayments?
+
+- **150+ cryptocurrencies** - Bitcoin, Ethereum, USDT, and more
+- **No KYC required** - Accept payments immediately
+- **Instant settlement** - Real-time payment processing
+- **Low fees** - Competitive transaction costs
+- **Global reach** - Accept payments from anywhere
 
 ## Installation
 
-**Note:** This gem is currently in development and not yet published to RubyGems.org.
-
-Add this line to your application's Gemfile:
+Add to your Gemfile:
 
 ```ruby
 gem 'nowpayments', git: 'https://github.com/Sentia/nowpayments'
 ```
 
-Then execute:
+Or install directly:
 
 ```bash
-bundle install
+gem install nowpayments
 ```
 
 ## Quick Start
@@ -35,157 +32,249 @@ bundle install
 ```ruby
 require 'nowpayments'
 
-# Initialize the client
+# Initialize client
 client = NOWPayments::Client.new(
   api_key: ENV['NOWPAYMENTS_API_KEY'],
-  ipn_secret: ENV['NOWPAYMENTS_IPN_SECRET'],
-  sandbox: true  # Use sandbox for testing
+  sandbox: false
 )
 
 # Create a payment
-payment = client.payments.create(
+payment = client.create_payment(
   price_amount: 100.0,
   price_currency: 'usd',
   pay_currency: 'btc',
-  order_id: 'order-123'
+  order_id: 'order-123',
+  ipn_callback_url: 'https://yourdomain.com/webhooks/nowpayments'
 )
 
-# Verify an IPN webhook (in your Rails/Sinatra controller)
-begin
-  payload = NOWPayments::Webhook.verify!(
-    request.body.read,
-    request.headers['x-nowpayments-sig'],
-    ENV['NOWPAYMENTS_IPN_SECRET']
-  )
+# Show payment details to customer
+puts "Send payment to: #{payment['pay_address']}"
+puts "Amount: #{payment['pay_amount']} BTC"
+puts "Status: #{payment['payment_status']}"
+```
+
+## Features
+
+### Complete API Coverage
+
+- **Payments** - Create and track cryptocurrency payments
+- **Invoices** - Generate hosted payment pages
+- **Subscriptions** - Recurring payment plans
+- **Payouts** - Mass payment distribution
+- **Estimates** - Real-time price calculations
+- **Webhooks** - Secure IPN notifications with HMAC-SHA512
+
+### Built for Production
+
+- **Type-safe** - All responses validated against API schema
+- **Error handling** - Comprehensive exception hierarchy
+- **Secure** - Webhook signature verification with constant-time comparison
+- **Tested** - Full test coverage with VCR cassettes
+- **Rails-ready** - Drop-in Rack middleware for webhook verification
+
+## Usage Examples
+
+### Accept Payment on Your Site
+
+```ruby
+# 1. Create payment
+payment = client.create_payment(
+  price_amount: 49.99,
+  price_currency: 'usd',
+  pay_currency: 'btc',
+  order_id: "order-#{order.id}",
+  order_description: 'Pro Plan - Annual',
+  ipn_callback_url: 'https://example.com/webhooks/nowpayments'
+)
+
+# 2. Show payment address to customer
+@payment_address = payment['pay_address']
+@payment_amount = payment['pay_amount']
+
+# 3. Check status
+status = client.payment(payment['payment_id'])
+# => {"payment_status"=>"finished", ...}
+```
+
+### Hosted Invoice Page
+
+```ruby
+# Create invoice with hosted payment page
+invoice = client.create_invoice(
+  price_amount: 99.0,
+  price_currency: 'usd',
+  order_id: "inv-#{invoice.id}",
+  success_url: 'https://example.com/thank-you',
+  cancel_url: 'https://example.com/checkout'
+)
+
+# Redirect customer to payment page
+redirect_to invoice['invoice_url']
+# Customer can choose from 150+ cryptocurrencies
+```
+
+### Webhook Verification (Critical!)
+
+**Always verify webhook signatures to prevent fraud:**
+
+```ruby
+# app/controllers/webhooks_controller.rb
+class WebhooksController < ApplicationController
+  skip_before_action :verify_authenticity_token
   
-  if payload['payment_status'] == 'finished'
-    # Payment complete - fulfill order
+  def nowpayments
+    # Verify signature - raises SecurityError if invalid
+    payload = NOWPayments::Rack.verify_webhook(
+      request,
+      ENV['NOWPAYMENTS_IPN_SECRET']
+    )
+    
+    # Process payment status
+    order = Order.find_by(id: payload['order_id'])
+    
+    case payload['payment_status']
+    when 'finished'
+      order.mark_paid!
+      OrderMailer.payment_received(order).deliver_later
+    when 'failed', 'expired'
+      order.cancel!
+    when 'partially_paid'
+      # Customer sent wrong amount
+      logger.warn "Underpaid: #{payload['actually_paid']} vs #{payload['pay_amount']}"
+    end
+    
+    head :ok
+    
+  rescue NOWPayments::SecurityError => e
+    logger.error "Invalid webhook signature: #{e.message}"
+    head :forbidden
   end
-rescue NOWPayments::SecurityError => e
-  # Invalid signature - potential fraud attempt
-  render status: 403
+end
+
+# config/routes.rb
+post '/webhooks/nowpayments', to: 'webhooks#nowpayments'
+```
+
+### Error Handling
+
+```ruby
+begin
+  payment = client.create_payment(...)
+  
+rescue NOWPayments::AuthenticationError
+  # Invalid API key
+  
+rescue NOWPayments::BadRequestError => e
+  # Invalid parameters
+  puts "Error: #{e.message}"
+  puts "Details: #{e.body}"
+  
+rescue NOWPayments::RateLimitError => e
+  # Too many requests
+  retry_after = e.headers['Retry-After']
+  
+rescue NOWPayments::ServerError
+  # NOWPayments server error
+  
+rescue NOWPayments::ConnectionError
+  # Network error
 end
 ```
 
-## Configuration
+## Documentation
 
-### API Credentials
+- **[Complete API Reference](docs/API.md)** - All methods with examples
+- **[Official API Docs](https://documenter.getpostman.com/view/7907941/2s93JusNJt)** - NOWPayments API documentation
+- **[Dashboard](https://nowpayments.io/)** - Production environment
+- **[Sandbox Dashboard](https://account-sandbox.nowpayments.io/)** - Testing environment
 
-You'll need the following credentials from your [NOWPayments Dashboard](https://nowpayments.io/):
-
-1. **API Key** - For standard API authentication
-2. **IPN Secret Key** - For webhook signature verification
-3. **Email/Password** - For JWT-authenticated endpoints (Mass Payouts)
-
-Store these securely using environment variables:
-
-```bash
-NOWPAYMENTS_API_KEY=your_api_key_here
-NOWPAYMENTS_IPN_SECRET=your_ipn_secret_here
-NOWPAYMENTS_SANDBOX_API_KEY=your_sandbox_key_here
-```
-
-### Sandbox Environment
-
-NOWPayments provides a full-featured sandbox for testing. Enable it during initialization:
+## Testing with Sandbox
 
 ```ruby
+# Use sandbox for development
 client = NOWPayments::Client.new(
   api_key: ENV['NOWPAYMENTS_SANDBOX_API_KEY'],
+  ipn_secret: ENV['NOWPAYMENTS_SANDBOX_IPN_SECRET'],
   sandbox: true
 )
+
+# All API calls go to sandbox environment
+payment = client.create_payment(...)
 ```
 
-## Usage
+**Get sandbox credentials:**
+1. Create account at https://account-sandbox.nowpayments.io/
+2. Generate API key from dashboard
+3. Generate IPN secret for webhooks
+4. Add to `.env` file
 
-Comprehensive usage examples will be added as features are implemented. See `docs/` for detailed guides.
+## Configuration
 
+```bash
+# .env
+NOWPAYMENTS_API_KEY=your_production_api_key
+NOWPAYMENTS_IPN_SECRET=your_ipn_secret
+
+# Testing
+NOWPAYMENTS_SANDBOX_API_KEY=your_sandbox_api_key
+NOWPAYMENTS_SANDBOX_IPN_SECRET=your_sandbox_ipn_secret
+```
+
+## Examples
+
+See the `examples/` directory:
+
+```bash
+# API usage demo
+cp .env.example .env
+# Add your sandbox credentials to .env
+ruby examples/simple_demo.rb
+
+# Webhook receiver (Sinatra)
+ruby examples/webhook_server.rb
+# Use ngrok to expose: ngrok http 4567
+```
 
 ## Development
 
-After checking out the repo, run `bin/setup` to install dependencies. Then, run `rake spec` to run the tests. You can also run `bin/console` for an interactive prompt that will allow you to experiment.
-
-### Running Tests
-
 ```bash
-# Run all tests
+# Install dependencies
+bundle install
+
+# Run tests
 bundle exec rspec
 
-# Run specific test file
-bundle exec rspec spec/nowpayments/client_spec.rb
-
-# Run with coverage report
+# Run tests with coverage
 COVERAGE=true bundle exec rspec
+
+# Lint code
+bundle exec rubocop
+
+# Interactive console
+bundle exec rake console
 ```
-
-### Sandbox Testing
-
-To test against the NOWPayments Sandbox:
-
-1. Create a [NOWPayments Sandbox account](https://account-sandbox.nowpayments.io/)
-2. Generate API keys from the dashboard
-3. Copy `.env.example` to `.env` and add your keys
-4. Run tests with: `bundle exec rspec --tag sandbox`
-
-### Documentation
-
-Generate API documentation:
-
-```bash
-bundle exec yard doc
-bundle exec yard server
-```
-
-## Architecture
-
-This gem follows the Client/Resource pattern for clean separation of concerns:
-
-```ruby
-NOWPayments::Client               # Central configuration and HTTP client
-├── NOWPayments::PaymentResource       # Standard payments
-├── NOWPayments::InvoiceResource       # Hosted payment pages
-├── NOWPayments::PayoutResource        # Mass payouts
-├── NOWPayments::SubscriptionResource  # Recurring billing
-└── NOWPayments::CustodyResource       # Sub-account management
-
-NOWPayments::Webhook              # IPN verification utility
-NOWPayments::Error                # Custom exception hierarchy
-```
-
-Built with:
-
-- Faraday 2.x for HTTP with middleware architecture
-- VCR cassettes for deterministic, fast tests against real API responses
-- Client-side validation to catch errors before API calls
-- Thread-safe JWT lifecycle management for auto-refreshing tokens
-- Recursive key sorting for secure HMAC verification
 
 ## Contributing
 
-Bug reports and pull requests are welcome on GitHub at [https://github.com/Sentia/nowpayments](https://github.com/Sentia/nowpayments).
+1. Fork it
+2. Create your feature branch (`git checkout -b feature/my-feature`)
+3. Run tests (`bundle exec rspec`)
+4. Commit your changes (`git commit -am 'Add feature'`)
+5. Push to the branch (`git push origin feature/my-feature`)
+6. Create a Pull Request
 
-To contribute:
+## Security
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Write tests for your changes
-4. Ensure all tests pass (`bundle exec rspec`)
-5. Run linter (`bundle exec rubocop`)
-6. Commit your changes (`git commit -am 'Add amazing feature'`)
-7. Push to the branch (`git push origin feature/amazing-feature`)
-8. Open a Pull Request
+**Report security vulnerabilities to:** security@yourdomain.com
+
+Never commit API keys or secrets. Always use environment variables.
 
 ## License
 
-The gem is available as open source under the terms of the [MIT License](https://opensource.org/licenses/MIT).
+MIT License - see [LICENSE.txt](LICENSE.txt)
 
-## Resources
+## Support
 
-- [NOWPayments Official API Documentation](https://documenter.getpostman.com/view/7907941/S1a32n38)
-- [NOWPayments Dashboard](https://nowpayments.io/)
-- [NOWPayments Sandbox](https://account-sandbox.nowpayments.io/)
-- [Issue Tracker](https://github.com/Sentia/nowpayments/issues)
-
----
-
-**Note:** This is an unofficial client library and is not affiliated with or endorsed by NOWPayments.
+- [GitHub Issues](https://github.com/Sentia/nowpayments/issues)
+- [NOWPayments Support](https://nowpayments.io/help)
+- [API Documentation](https://documenter.getpostman.com/view/7907941/2s93JusNJt)
