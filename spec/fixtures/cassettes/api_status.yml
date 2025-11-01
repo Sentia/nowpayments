@@ -1,0 +1,60 @@
+---
+http_interactions:
+- request:
+    method: get
+    uri: https://api-sandbox.nowpayments.io/v1/status
+    body:
+      encoding: US-ASCII
+      string: ''
+    headers:
+      X-Api-Key:
+      - test_key
+      User-Agent:
+      - Faraday v2.14.0
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - "*/*"
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Date:
+      - Sat, 01 Nov 2025 02:42:39 GMT
+      Content-Type:
+      - application/json; charset=utf-8
+      Transfer-Encoding:
+      - chunked
+      Connection:
+      - keep-alive
+      Server:
+      - cloudflare
+      X-Dns-Prefetch-Control:
+      - 'off'
+      X-Frame-Options:
+      - SAMEORIGIN
+      Strict-Transport-Security:
+      - max-age=15552000; includeSubDomains
+      - max-age=15768000
+      X-Download-Options:
+      - noopen
+      X-Content-Type-Options:
+      - nosniff
+      X-Xss-Protection:
+      - 1; mode=block
+      Vary:
+      - Origin, Accept-Encoding
+      Cf-Cache-Status:
+      - DYNAMIC
+      Nel:
+      - '{"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}'
+      Report-To:
+      - '{"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=BETAgpcWEbj044SK99owjRqHxxvMoy%2FqYtT2cLfX6NZ4Ygf60RobwxJ3Q6i%2BuHZXHy%2BwePEg162FQraCtrSck%2Fsbd4y2fwJdzfBJTV8%2FUl5YeWOYBuQFhUA%3D"}]}'
+      Cf-Ray:
+      - 99780a3df813a97f-SYD
+    body:
+      encoding: ASCII-8BIT
+      string: '{"message":"OK"}'
+  recorded_at: Sat, 01 Nov 2025 02:42:39 GMT
+recorded_with: VCR 6.3.1
