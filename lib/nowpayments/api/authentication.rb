@@ -10,12 +10,53 @@ module NOWPayments
       # @param email [String] Your NOWPayments dashboard email (case-sensitive)
       # @param password [String] Your NOWPayments dashboard password (case-sensitive)
       # @return [Hash] Authentication response with JWT token
+      # @raise [AuthenticationError] if credentials are invalid or access is denied
       # @note Email and password are case-sensitive. test@gmail.com != Test@gmail.com
       def authenticate(email:, password:)
         response = post("auth", body: {
                           email: email,
                           password: password
                         })
+
+        # Check for authentication errors
+        if response.body.is_a?(Hash)
+          # Handle 403 ACCESS_DENIED error
+          if response.body["statusCode"] == 403 || response.body["code"] == "ACCESS_DENIED"
+            error_msg = "Authentication failed: #{response.body["message"] || "Access denied"}. "
+            
+            if sandbox
+              error_msg += "You are using SANDBOX mode. "
+              error_msg += "Please verify:\n"
+              error_msg += "   1. You have a sandbox account at https://sandbox.nowpayments.io/\n"
+              error_msg += "   2. Your email and password are correct (case-sensitive)\n"
+              error_msg += "   3. Your sandbox account has API access enabled"
+            else
+              error_msg += "You are using PRODUCTION mode. "
+              error_msg += "Please verify:\n"
+              error_msg += "   1. Your NOWPayments account at https://nowpayments.io/ has API access enabled\n"
+              error_msg += "   2. Go to Settings → API → Enable API access if not already enabled\n"
+              error_msg += "   3. Your email and password are correct (case-sensitive)\n"
+              error_msg += "   4. If testing, you may need to use sandbox: true and sandbox credentials"
+            end
+            
+            raise AuthenticationError.new(
+              status: response.body["statusCode"],
+              body: { "message" => error_msg },
+              response_headers: response.headers
+            )
+          end
+          
+          # Handle other error responses
+          status_code = response.body["statusCode"]&.to_i || 0
+          if response.body["status"] == false || (status_code > 0 && status_code >= 400)
+            error_msg = response.body["message"] || "Authentication failed"
+            raise AuthenticationError.new(
+              status: status_code,
+              body: { "message" => error_msg },
+              response_headers: response.headers
+            )
+          end
+        end
 
         # Store token and expiry time (5 minutes from now)
         if response.body["token"]
@@ -24,6 +65,9 @@ module NOWPayments
 
           # Reset connection to include new Bearer token
           reset_connection! if respond_to?(:reset_connection!, true)
+        else
+          # No token in response - authentication failed
+          raise AuthenticationError, "Authentication failed: No token received. Check your email and password."
         end
 
         response.body
