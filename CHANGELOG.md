@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2025-12-09
+
+### Fixed
+- **Critical Webhook Signature Verification Bug**: Fixed signature verification failing when NOWPayments sends numbers in scientific notation (e.g., `1e-7`)
+  - The previous implementation parsed the JSON body, sorted keys, and re-serialized it before computing the HMAC
+  - Ruby's `JSON.generate` would change number formatting (e.g., `1e-7` → `0.0000001`), breaking the signature
+  - Now computes HMAC directly on the raw body string, which is correct since NOWPayments already sends keys in sorted order
+  - Removed unused `sort_keys_recursive` and `generate_signature` private methods
+
+### Changed
+- Simplified `Webhook.verify!` implementation - now a single HMAC computation on raw body
+- Added comprehensive regression tests including scientific notation edge case
+
 ## [0.2.0] - 2025-11-01
 
 ### Added - 100% API Coverage Achievement! 🎉
