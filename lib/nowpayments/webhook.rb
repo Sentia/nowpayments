@@ -18,35 +18,18 @@ module NOWPayments
         raise ArgumentError, "signature required" if signature.nil? || signature.empty?
         raise ArgumentError, "secret required" if secret.nil? || secret.empty?
 
-        parsed = JSON.parse(raw_body)
-        sorted_json = sort_keys_recursive(parsed)
-        expected_sig = generate_signature(sorted_json, secret)
+        # Compute HMAC directly on raw body - NOWPayments already sends keys in sorted order.
+        # DO NOT parse and re-serialize! Ruby's JSON.generate may change number formatting
+        # (e.g., scientific notation "1e-7" becomes "0.0000001"), breaking the signature.
+        expected_sig = OpenSSL::HMAC.hexdigest("SHA512", secret, raw_body)
 
         raise SecurityError, "Invalid IPN signature - webhook verification failed" unless secure_compare(expected_sig, signature)
 
-        parsed
+        # Only parse after verification succeeds
+        JSON.parse(raw_body)
       end
 
       private
-
-      # Recursively sort Hash keys (including nested hashes and arrays)
-      # This is critical for proper HMAC signature verification
-      def sort_keys_recursive(obj)
-        case obj
-        when Hash
-          obj.sort.to_h.transform_values { |v| sort_keys_recursive(v) }
-        when Array
-          obj.map { |v| sort_keys_recursive(v) }
-        else
-          obj
-        end
-      end
-
-      # Generate HMAC-SHA512 signature
-      def generate_signature(sorted_json, secret)
-        json_string = JSON.generate(sorted_json, space: "", indent: "")
-        OpenSSL::HMAC.hexdigest("SHA512", secret, json_string)
-      end
 
       # Constant-time comparison to prevent timing attacks
       def secure_compare(a, b)
